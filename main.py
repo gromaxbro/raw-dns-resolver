@@ -10,23 +10,32 @@ sock.bind(add)
 print(f"Listening for UDP packets on {UDP_IP}:{UDP_PORT}")
 
 num = 12
-a = num.to_bytes(2,byteorder="big")
-print(a)
 i = 12
 
 def read_data(data):
+        # Field   Size (bits)     Description
+        # ID         16              A unique identifier assigned by the client. Used to match responses to queries.
+        # Flags      16              Contains control bits (see below).
+        # QDCOUNT    16              Number of entries in the Question section.
+        # ANCOUNT    16              Number of resource records in the Answer section.
+        # NSCOUNT    16              Number of name server (Authority) records.
+        # ARCOUNT    16              Number of additional records
+
         idd = int.from_bytes(data[0:2], byteorder='big')
         flags = int.from_bytes(data[2:4], byteorder='big')
         QDCOUNT = int.from_bytes(data[4:6], byteorder='big')
         ANCOUNT = int.from_bytes(data[6:8], byteorder='big')
         NSCOUNT = int.from_bytes(data[8:10], byteorder='big')
         ARCOUNT = int.from_bytes(data[10:12], byteorder='big')
-        print(f"id :{id} \n flags:{flags} \n QDCOUNT:{QDCOUNT} \n ANCOUNT:{ANCOUNT} \n NSCOUNT:{NSCOUNT} \n ARCOUNT:{ARCOUNT}")
+        print(f"id :{idd} \n flags:{flags} \n QDCOUNT:{QDCOUNT} \n ANCOUNT:{ANCOUNT} \n NSCOUNT:{NSCOUNT} \n ARCOUNT:{ARCOUNT}")
         return {idd,flags,QDCOUNT,ANCOUNT,NSCOUNT,ARCOUNT}
-
 
 def read_question(data):
         global i
+
+        # QNAME   The queried domain name, encoded as labels (e.g., www.google.com → 3www6google3com0).
+        # QTYPE   Type of record requested (e.g., 1 = A, 28 = AAAA, 15 = MX).
+        # QCLASS  Usually 1 for Internet (IN).
         label = []
         while data[i] != 0:
                 point = data[i]
@@ -40,6 +49,16 @@ def read_question(data):
 
         print("QTYPE:", qtype)
         print("QCLASS:", qclass)     
+
+#         QTYPE   Meaning Notes
+# 1       A       IPv4 address
+# 28      AAAA    IPv6 address
+# 5       CNAME   Canonical name / alias
+# 15      MX      Mail exchange server
+# 2       NS      Authoritative name server
+# 12      PTR     Reverse DNS lookup
+# 16      TXT     Arbitrary text
+# 33      SRV     Service location (used in SIP, XMPP, etc.)
 
 def make_header(data):
         id_bytes = data[0:2]
@@ -66,15 +85,14 @@ def make_answer(data):
 while True:
         i = 12
         data, addr = sock.recvfrom(1024)
-        print(data)
+        print("******************\n",data,"\n***********************")
 
         read = read_data(data)   
-
         question = read_question(data)
 
         header = make_header(data)
-        
         answer = make_answer(data)
-
-        print(header+answer)
+        print("******************\n")
+        print(f"Answer hex:{header+answer}")
+        print("******************\n")
         sock.sendto(header+answer,addr)
