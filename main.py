@@ -12,11 +12,9 @@ print(f"Listening for UDP packets on {UDP_IP}:{UDP_PORT}")
 num = 12
 a = num.to_bytes(2,byteorder="big")
 print(a)
+i = 12
 
-while True:
-        data, addr = sock.recvfrom(1024)
-        print(data)
-
+def read_data(data):
         idd = int.from_bytes(data[0:2], byteorder='big')
         flags = int.from_bytes(data[2:4], byteorder='big')
         QDCOUNT = int.from_bytes(data[4:6], byteorder='big')
@@ -24,34 +22,37 @@ while True:
         NSCOUNT = int.from_bytes(data[8:10], byteorder='big')
         ARCOUNT = int.from_bytes(data[10:12], byteorder='big')
         print(f"id :{id} \n flags:{flags} \n QDCOUNT:{QDCOUNT} \n ANCOUNT:{ANCOUNT} \n NSCOUNT:{NSCOUNT} \n ARCOUNT:{ARCOUNT}")
+        return {idd,flags,QDCOUNT,ANCOUNT,NSCOUNT,ARCOUNT}
 
-        i = 12
+
+def read_question(data):
+        global i
         label = []
-
         while data[i] != 0:
-        	point = data[i]
-        	i += 1
-        	label.append(data[i:i+point].decode())
-        	i = i + point	
+                point = data[i]
+                i += 1
+                label.append(data[i:i+point].decode())
+                i = i + point   
         print(label)
 
         qtype  = int.from_bytes(data[i:i+2], byteorder='big')
         qclass = int.from_bytes(data[i+2:i+4], byteorder='big')
 
         print("QTYPE:", qtype)
-        print("QCLASS:", qclass)
+        print("QCLASS:", qclass)     
 
+def make_header(data):
         id_bytes = data[0:2]
         flags = b'\x81\x80'  # standard response, QR=1, AA=1, no error
         qdcount = data[4:6]
         ancount = b'\x00\x01'  # one answer
         nscount = b'\x00\x00'
         arcount = b'\x00\x00'
-
         header = id_bytes + flags + qdcount + ancount + nscount + arcount
+        return header
 
+def make_answer(data):
         question_bytes = data[12:i+1+4]
-
         answer = b'\xc0\x0c'        # pointer to QNAME (offset 12)
         answer += question_bytes[-4:-2]   # QTYPE
         answer += question_bytes[-2:]     # QCLASS
@@ -61,5 +62,19 @@ while True:
         ip = "102.112.43.42"
         answer += socket.inet_aton(ip)
 
-        print(header+question_bytes+answer)
-        sock.sendto(header+question_bytes+answer,addr)
+        return question_bytes+answer
+while True:
+        i = 12
+        data, addr = sock.recvfrom(1024)
+        print(data)
+
+        read = read_data(data)   
+
+        question = read_question(data)
+
+        header = make_header(data)
+        
+        answer = make_answer(data)
+
+        print(header+answer)
+        sock.sendto(header+answer,addr)
