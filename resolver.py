@@ -1,8 +1,7 @@
 from urllib.parse import urlparse
 import socket
 
-# 1 the user provides the URL
-
+# User provides the URL
 url = input("provide the url: ")
 
 def sanitize_url(url):
