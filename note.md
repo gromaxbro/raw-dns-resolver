@@ -16,7 +16,7 @@ QTYPE   Type of record requested (e.g., 1 = A, 28 = AAAA, 15 = MX).
 QCLASS  Usually 1 for Internet (IN).
 ```
 
-## QTYPE
+## QTYPE (DNS Records)
 ```
 ### QTYPE   Meaning Notes
 1       A       IPv4 address
