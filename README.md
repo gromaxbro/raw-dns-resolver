@@ -13,7 +13,7 @@ python3 -m venv venv
 source venv\bin\activate 
 ```
 
-- install all the packages
+- install all the packages (if any)
 ```bash
 pip install -r requiremnts.txt
 ```
@@ -21,4 +21,8 @@ pip install -r requiremnts.txt
 - run the resolver
 ```bash
 py main.py
+
+# or
+
+py resolver.py
 ```
