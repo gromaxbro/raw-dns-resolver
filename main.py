@@ -2,6 +2,26 @@ import socket
 import json
 import time
 
+# id use dig or browser to send a dns query lets take we did:
+# dig @127.0.0.1 example.com it sends a query in hex bytes
+# like this \x81\x80\x00\x01\x00\x00\x00\x00\x00\x00\x04rock\x03com\x00\x00\x01\x00\x01
+
+# we can decode it using read_header() and read_question() funtions
+# we can craft answer with make_header() and make_answer() funtion
+
+
+# read_header(data) asks for data = which is hex bytes
+# it return {idd,flags,QDCOUNT,ANCOUNT,NSCOUNT,ARCOUNT}
+# these are the headers variables you can learn about it more in note.md
+
+
+# read_question(data) asks for data = which is hex bytes
+# the data after header is question ex (example.com , and datatype)
+# it return [rec,qtype,qclass] rec = local cache , qtype = 'A','AAAA'
+
+# make_header(data,q_len) qlen is the number of ips we will return 
+# make_answer(data) create answer by copying read_question data and the ip from cache
+
 
 with open("cache.json", "r") as f:
     cache = json.load(f)
@@ -13,8 +33,6 @@ def get_cache(cache, domain, qtype):
     else:
         return 0
     
-
-
 def add_cache(cache, domain, qtype, value, ttl=3600):
     current_time = time.time()
     if domain not in cache:
@@ -38,7 +56,7 @@ print(cache)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 UDP_IP = "127.0.0.1"
-UDP_PORT = 53
+UDP_PORT = 1234
 add = (UDP_IP, UDP_PORT)
 sock.bind(add)
 print(f"Listening for UDP packets on {UDP_IP}:{UDP_PORT}")
@@ -130,17 +148,19 @@ def make_answer(data,rec=0):
         return question_bytes+answer
 while True:
         i = 12
-        data, addr = sock.recvfrom(1024)
+        # this return hex bytes
+        data, addr = sock.recvfrom(1024) 
         print("******************\n",data,"\n***********************")
 
         read = read_data(data)   
         question = read_question(data)
-        if question[0] != 0:
-            print("got answer")
+
+        if question[0] != 0: # it check if there is local cache or not
+            print("got answer") # found cache return ips
             header = make_header(data,len(question[0]))
             answer = make_answer(data,question)
         else:
-            header = make_header(data,0)
+            header = make_header(data,0) # no cache return 0 answers
             answer = make_answer(data)
 
         print("******************\n")
