@@ -22,7 +22,7 @@ def get_records(name: str, rtype: str, rclass: str = "IN"):
                 live.append(r["value"])
         return list(dict.fromkeys(live))
 
-def set_records(name: str, values_with_ttl, rtype: str, rclass: str = "IN"):
+def set_records(name: str, values_with_ttl: list, rtype: str, rclass: str = "IN"):
     # values_with_ttl: iterable of (value, ttl_seconds)
     now = time.time()
     records, set_expires_at = [], None
