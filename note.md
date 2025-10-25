@@ -30,6 +30,7 @@ QCLASS  Usually 1 for Internet (IN).
 ```
 
 1️⃣ Byte 1 (first 8 bits)
+```
 Bit	Value	Meaning
 7	128	QR (0=query, 1=response)
 6	64	Opcode bit 3 (0)
@@ -37,12 +38,14 @@ Bit	Value	Meaning
 4	16	Opcode bit 1 (0)
 3	8	Opcode bit 0 (0)
 2	4	AA (AA 0 (set clients no auth) or a recersive, 1 = is a namserver)
-1	2	TC (Truncated) (TC = 1 truncated use TCP ,TC = 0 the message is complete)
-0	1	RD (Recursion Desired) (1 → server can do recursion ,0 → cannot do recursion)
+1	2	TC (Truncated) (TC = 1 truncated use TCP ,TC = 0 the message iscomplete)
+0	1	RD (Recursion Desired) (1 → server can do recursion ,0 → cannot do)
 
 1+0+0+0+0+0+0+128
 
+```
 2️⃣ Byte 2 (next 8 bits)
+```
 Bit	Value	Meaning
 7	128	RA (Recursion Available) queries  RA = 0.responses,most modern resolver RA = 1.
 6	64	Z (Reserved) (0)
@@ -52,4 +55,13 @@ Bit	Value	Meaning
 2	4	RCODE bit 2 only for response else 0
 1	2	RCODE bit 1
 0	1	RCODE bit 0
+```
 
+
+## contact to root server
+
+there are 13 root server in the world we can find ips in `root hint file`
+
+- first ping all the servers and get nearest one and work with it
+
+usually root servers are Anycast (many physical server uses same ip) 
