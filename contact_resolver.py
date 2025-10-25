@@ -83,7 +83,7 @@ UDP_IP = "1.1.1.1"
 UDP_PORT = 53
 add = (UDP_IP, UDP_PORT)
 
-domain = 'google.com'
+domain = 'reddit.com'
 packet = query(domain,1)
 addr = sock.sendto(packet, (UDP_IP, UDP_PORT))
 
