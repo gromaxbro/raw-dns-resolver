@@ -1,2 +1,3 @@
-text = "wasap.com"
+ag = [(1324,345)]
 
+print(ag[0](0))
