@@ -111,6 +111,27 @@ def check_nearest_root():
 
 	nearest_root = best["value"]
 
+def read_answer(data,answer_start):
+	i = 0
+	ans = data[answer_start:]
+	val_arr = []
+
+	while (i<len(ans)):
+		rtype = int.from_bytes(ans[i+2:i+4], byteorder='big')
+		rclass = int.from_bytes(ans[i+4:i+6], byteorder='big')
+		rttl = int.from_bytes(ans[i+6:i+10], byteorder='big')
+		rdlen = int.from_bytes(ans[i+10:i+12], byteorder='big')
+
+		value = socket.inet_ntoa(ans[i+12:i+12+rdlen])
+
+		val_arr.append((value,rttl))
+		print(f"type = {rtype} ,rclass = {rclass} ,rttl = {rttl} ,rdlen={rdlen} ,value={value}")
+
+		i = i + 12 + rdlen
+
+	return val_arr
+
+
 def read_addional(packet,data):
 	additonal_ip = []
 	ns_count = int.from_bytes(data[8:10], byteorder="big")
@@ -226,31 +247,59 @@ def tld_server(tld_ips,domain,recursive=0):
 	add = (UDP_IP, UDP_PORT)
 	packet = query(domain,2)
 	print(packet)
-	addr = sock.sendto(packet, (UDP_IP, UDP_PORT))
-	data, addr = sock.recvfrom(1024)	
-	print(f"[+] response from {addr}")
+	try:
+		addr = sock.sendto(packet, (UDP_IP, UDP_PORT))
+		data, addr = sock.recvfrom(1024)	
+		print(f"[+] response from {addr}")
+	except socket.timeout:
+            print(f"[-] No response from {server_ip}, trying next server...")
+            tld_server(tld_ips,domain,1)
 	print(data)
 	print()
 	if recursive == 1:
 		nameserver_ns = random.choice(read_authority(packet,data))
-		print(nameserver_ns)
+		print("[+] finding ip of nameserver "+nameserver_ns)
+		# print(nameserver_ns)
 		mg = root_server(nearest_root,nameserver_ns)
 		print(mg)
-		tld_server(mg,nameserver_ns,0)
+		ok = tld_server(mg,nameserver_ns,0)
+		return ok
+
 	else:
-		tld_ips = read_addional(packet,data)
+		nameservers_ips = read_addional(packet,data)
 		print("FOUND NAME SERVERS")
-		print(tld_ips)
+		print(nameservers_ips)
+		return nameservers_ips
 
 	# ns_count = int.from_bytes(data[8:10], byteorder="big")
 
 
+def nameserver(name_ips,domain):
+	name_ip = random.choice(name_ips)
+	print(f"[+] contacting name server ",name_ip)
+	UDP_IP = name_ip
+	UDP_PORT = 53
+	add = (UDP_IP, UDP_PORT)
+	packet = query(domain,1)
+	print(packet)
+	addr = sock.sendto(packet, (UDP_IP, UDP_PORT))
+	data, addr = sock.recvfrom(1024)
+	print(f"[+] response from {addr}")
+	print(data)
+	# print()
+	return read_answer(data,len(packet))
+
 
 check_nearest_root()
 
-domain = 'zapet.fun'
+domain = input("enter domain :")
 
 root_response = root_server(nearest_root,domain)
 print(root_response)
 
-tld_server(root_response,domain,1)
+nameserver_ips = tld_server(root_response,domain,1)
+
+domain_ip = nameserver(nameserver_ips,domain)
+print("*************WE FOUND YOUR IP************")
+print(f"{domain} :")
+print(domain_ip)
