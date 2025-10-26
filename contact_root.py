@@ -8,7 +8,7 @@ root_ips = []
 nearest_root = []
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.settimeout(1.0) 
+sock.settimeout(2.0) 
 
 
 def update_root_address():
@@ -111,18 +111,8 @@ def check_nearest_root():
 
 	nearest_root = best["value"]
 
-def root_server(root_ip,domain):
-	print(f"[+] contacting root server {root_ip[0]}")
-	UDP_IP = root_ip[1]
-	UDP_PORT = 53
-	add = (UDP_IP, UDP_PORT)
-	packet = query(domain,2)
-	tld_ips = []
-
-	# A = 1 ,NS = 2
-	addr = sock.sendto(packet, (UDP_IP, UDP_PORT))
-	data, addr = sock.recvfrom(1024)
-	print(f"[+] response from {addr}")
+def read_addional(packet,data):
+	additonal_ip = []
 	ns_count = int.from_bytes(data[8:10], byteorder="big")
 	# Additional count (ARCOUNT) at bytes 10-11
 	ar_count = int.from_bytes(data[10:12], byteorder="big")
@@ -130,17 +120,18 @@ def root_server(root_ip,domain):
 	offset = 0
 
 	# print(ns_count)
-	print("tld count:",int(ar_count/2))
+	print("ar count:",int(ar_count/2))
 	# print(data)
 
 	offset += len(packet)
+
+	# authority skip
 	for i in range(ns_count):
 		offset += 2 + 2 + 2 + 4 + 2
 		rdata = int.from_bytes(data[offset-2:offset], byteorder="big")
 		offset += rdata
 
-	# print(data[offset:])
-
+	# reading additional
 	for i in range(ar_count):
 		offset += 2 # name
 		type = int.from_bytes(data[offset:offset+2], byteorder="big")
@@ -150,14 +141,116 @@ def root_server(root_ip,domain):
 		if type == 1:
 			ip = socket.inet_ntoa(data[offset:offset + rdata])
 			print(ip)
-			tld_ips.append(ip)
+			additonal_ip.append(ip)
 		offset += rdata
-	return tld_ips
+	return additonal_ip
+
+def decode_dns_name(data, offset):
+    labels = []
+    original_offset = offset
+    jumped = False
+
+    while True:
+        length = data[offset]
+
+        # Pointer detected
+        if (length & 0xC0) == 0xC0:
+            pointer_bytes = data[offset:offset+2]
+            pointer_offset = int.from_bytes(pointer_bytes, 'big') & 0x3FFF
+            if not jumped:
+                original_offset = offset + 2  # next offset after pointer
+            offset = pointer_offset
+            jumped = True
+            continue
+
+        # End of name
+        if length == 0:
+            offset += 1
+            if not jumped:
+                original_offset = offset
+            break
+
+        # Normal label
+        offset += 1
+        labels.append(data[offset:offset+length].decode("ascii"))
+        offset += length
+
+    return ".".join(labels), original_offset
+
+def read_authority(packet, data):
+    authority_ip = []
+    ns_count = int.from_bytes(data[8:10], "big")
+    offset = len(packet)
+
+    for i in range(ns_count):
+        # Decode NAME first (handles pointers)
+        name, name_end = decode_dns_name(data, offset)
+
+        # TYPE (2), CLASS (2), TTL (4), RDLENGTH (2)
+        rdata_len = int.from_bytes(data[name_end+8:name_end+10], "big")
+        rdata_offset = name_end + 10
+
+        # Decode NS RDATA (could have pointers)
+        ns_name, _ = decode_dns_name(data, rdata_offset)
+        print(f"NS record {i+1}: {ns_name}")
+
+        offset = rdata_offset + rdata_len
+        authority_ip.append(ns_name)
+
+
+    return authority_ip
+
+def root_server(root_ip,domain):
+	print(f"[+] contacting root server {root_ip[0]}")
+	UDP_IP = root_ip[1]
+	UDP_PORT = 53
+	add = (UDP_IP, UDP_PORT)
+	packet = query(domain,2)
 	
-# print(root_server[3][1])
+
+	# A = 1 ,NS = 2
+	addr = sock.sendto(packet, (UDP_IP, UDP_PORT))
+	data, addr = sock.recvfrom(1024)
+	print(f"[+] response from {addr}")
+	print(data)
+	tld_ips = read_addional(packet,data)
+
+	return tld_ips
+
+
+def tld_server(tld_ips,domain,recursive=0):
+	tld_ip = random.choice(tld_ips)
+	print(f"[+] contacting tld server ",tld_ip)
+	UDP_IP = tld_ip
+	UDP_PORT = 53
+	add = (UDP_IP, UDP_PORT)
+	packet = query(domain,2)
+	print(packet)
+	addr = sock.sendto(packet, (UDP_IP, UDP_PORT))
+	data, addr = sock.recvfrom(1024)	
+	print(f"[+] response from {addr}")
+	print(data)
+	print()
+	if recursive == 1:
+		nameserver_ns = random.choice(read_authority(packet,data))
+		print(nameserver_ns)
+		mg = root_server(nearest_root,nameserver_ns)
+		print(mg)
+		tld_server(mg,nameserver_ns,0)
+	else:
+		tld_ips = read_addional(packet,data)
+		print("FOUND NAME SERVERS")
+		print(tld_ips)
+
+	# ns_count = int.from_bytes(data[8:10], byteorder="big")
+
+
+
 check_nearest_root()
 
-domain = 'reddit.com'
+domain = 'zapet.fun'
 
 root_response = root_server(nearest_root,domain)
 print(root_response)
+
+tld_server(root_response,domain,1)
