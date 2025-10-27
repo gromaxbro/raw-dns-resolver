@@ -60,7 +60,7 @@ Bit	Value	Meaning
 
 ## contact to root server
 
-there are 13 root server in the world we can find ips in `root hint file`
+there are 13 kind of root server in the world we can find ips in `root hint file`
 
 - first ping all the servers and get nearest one and work with it
 
