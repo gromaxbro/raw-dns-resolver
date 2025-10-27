@@ -13,14 +13,29 @@ def get_records(name: str, rtype: str, rclass: str = "IN"):
         raw = txn.get(key)
         if not raw:
             return []
+
         obj = json.loads(raw.decode("utf-8"))
+
+        # expired set
         if obj.get("set_expires_at", 0) <= now:
             return []
+
         live = []
         for r in obj.get("records", []):
-            if r.get("expires_at", 0) > now:
-                live.append(r["value"])
-        return list(dict.fromkeys(live))
+            expires_at = r.get("expires_at", 0)
+            if expires_at > now:
+                remaining_ttl = int(expires_at - now)
+                live.append({"value": r["value"], "ttl": remaining_ttl})
+
+        # remove duplicates by value, keeping the first occurrence
+        seen = set()
+        unique_live = []
+        for r in live:
+            if r["value"] not in seen:
+                seen.add(r["value"])
+                unique_live.append(r)
+
+        return unique_live
 
 def set_records(name: str, values_with_ttl: list, rtype: str, rclass: str = "IN"):
     # values_with_ttl: iterable of (value, ttl_seconds)
