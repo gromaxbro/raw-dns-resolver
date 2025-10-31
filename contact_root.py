@@ -241,21 +241,24 @@ def root_server(root_ip,domain):
 
 def tld_server(tld_ips,domain,recursive=0):
 	tld_ip = random.choice(tld_ips)
+	tld_ips.remove(tld_ip)
 	print(f"[+] contacting tld server ",tld_ip)
 	UDP_IP = tld_ip
 	UDP_PORT = 53
 	add = (UDP_IP, UDP_PORT)
 	packet = query(domain,2)
 	print(packet)
+	data = ''
 	try:
 		addr = sock.sendto(packet, (UDP_IP, UDP_PORT))
 		data, addr = sock.recvfrom(1024)	
 		print(f"[+] response from {addr}")
 	except socket.timeout:
-            print(f"[-] No response from {server_ip}, trying next server...")
+            print(f"[-] No response from , trying next server...")
             tld_server(tld_ips,domain,1)
+            return 
+	print("BROOO THE DATA ")
 	print(data)
-	print()
 	if recursive == 1:
 		nameserver_ns = random.choice(read_authority(packet,data))
 		print("[+] finding ip of nameserver "+nameserver_ns)
@@ -266,6 +269,7 @@ def tld_server(tld_ips,domain,recursive=0):
 		return ok
 
 	else:
+		print("OK UHHHHHHHHH")
 		nameservers_ips = read_addional(packet,data)
 		print("FOUND NAME SERVERS")
 		print(nameservers_ips)
@@ -277,6 +281,7 @@ def tld_server(tld_ips,domain,recursive=0):
 def nameserver(name_ips,domain):
 	name_ip = random.choice(name_ips)
 	print(f"[+] contacting name server ",name_ip)
+	print("DOOOOINGGGGGGGGGGGGGGGGGG")
 	UDP_IP = name_ip
 	UDP_PORT = 53
 	add = (UDP_IP, UDP_PORT)
@@ -291,15 +296,15 @@ def nameserver(name_ips,domain):
 
 
 check_nearest_root()
+while True:
+	domain = input("enter domain :")
 
-domain = input("enter domain :")
+	root_response = root_server(nearest_root,domain)
+	print(root_response)
 
-root_response = root_server(nearest_root,domain)
-print(root_response)
+	nameserver_ips = tld_server(root_response,domain,1)
 
-nameserver_ips = tld_server(root_response,domain,1)
-
-domain_ip = nameserver(nameserver_ips,domain)
-print("*************WE FOUND YOUR IP************")
-print(f"{domain} :")
-print(domain_ip)
+	domain_ip = nameserver(nameserver_ips,domain)
+	print("*************WE FOUND YOUR IP************")
+	print(f"{domain} :")
+	print(domain_ip)
