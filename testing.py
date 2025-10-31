@@ -1,3 +1,7 @@
-ag = [(1324,345)]
+def google():
+    mg = god()
 
-print(ag[0](0))
+def god():
+    print("yoo")
+
+google()
