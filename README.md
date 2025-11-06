@@ -40,10 +40,10 @@ C.ROOT-SERVERS.NET. 3600000 IN A 192.33.4.12
 (Use all 13 root servers for best results.)
 
 ### Run the resolver:
-python resolver.py
+`python resolver.py`
 
 ### Enter a domain to resolve:
-domain: example.com
+`domain: example.com`
 
 ## How It Works
 
