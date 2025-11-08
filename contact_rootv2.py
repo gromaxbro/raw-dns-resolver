@@ -6,9 +6,10 @@ import time
 
 root_ips = []
 nearest_root = []
+i = 12
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.settimeout(2.0) 
+sock.settimeout(2) 
 
 
 def update_root_address():
@@ -113,6 +114,21 @@ def check_nearest_root():
 			best["time"] = execution_time
 
 	nearest_root = best["value"]
+def read_question(data, offset=12):
+    """
+    Parse and return only the QNAME (domain name) from a DNS query packet.
+    Starts after the 12-byte DNS header.
+    """
+    labels = []
+    while True:
+        length = data[offset]
+        if length == 0:
+            break
+        offset += 1
+        labels.append(data[offset:offset + length].decode("ascii"))
+        offset += length
+    domain = ".".join(labels)
+    return domain
 
 
 def read_answer(data, answer_start):
@@ -231,7 +247,7 @@ def read_authority(packet, data):
     return authority_ip
 
 
-def root_server(root_ip,domain):
+def root_server(sock,root_ip,domain):
 	print(f"[+] contacting root server {root_ip[0]}")
 	UDP_IP = root_ip[1]
 	UDP_PORT = 53
@@ -260,7 +276,7 @@ def find_answer_start(data):
     return offset
 
 
-def nameserver(name_ips,domain):
+def nameserver(sock,name_ips,domain):
 
 	if isinstance(name_ips, tuple):
 		name_ips = [name_ips]
@@ -315,7 +331,7 @@ def NS_TO_IP(packet,data):
 	return [namer_ip[0]]
 
 
-def tld_server(tld_ips,domain,recursive=0):
+def tld_server(sock,tld_ips,domain,recursive=0):
 	tld_ip = random.choice(tld_ips)
 	tld_ips.remove(tld_ip)
 	print(f"[+] contacting tld server ",tld_ip)
@@ -348,23 +364,42 @@ def tld_server(tld_ips,domain,recursive=0):
 	ok = NS_TO_IP(packet,data)
 	return ok
 
+def hostname(domain):
+	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP socket
+	s.settimeout(2) 
 
-
-update_root_address()
-check_nearest_root()
-
-
-while True:
-	# domain = "human.com"
-	domain = input("domain: ")
 	print("root --> tld")
-	root_res = root_server(nearest_root,domain)
+	root_res = root_server(s,nearest_root,domain)
 
 	print("Main query Tld :-",root_res)
 
 	print("tld --> namerserver NS")
-	tld = tld_server(root_res,domain,1)
+	tld = tld_server(s,root_res,domain,1)
 
 	print("nameserver Ip ---> Domain IP")
-	namer_res = nameserver(tld,domain)
+	namer_res = nameserver(s,tld,domain)
 	print(namer_res)
+	return namer_res
+
+update_root_address()
+check_nearest_root()
+
+UDP_IP = "127.0.0.1"
+UDP_PORT = 1234
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP socket
+add = (UDP_IP, UDP_PORT)
+sock.bind(add)
+print(f"Listening for UDP packets on {UDP_IP}:{UDP_PORT}")
+
+
+
+while True:
+	# domain = "human.com"
+	# domain = input("fg: ")
+	# hostname(domain)
+	data, addr = sock.recvfrom(1024)
+	print(addr)
+	question = read_question(data)
+	print("name:= ",question)
+	hostname(question)
