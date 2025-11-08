@@ -403,3 +403,4 @@ while True:
 	question = read_question(data)
 	print("name:= ",question)
 	hostname(question)
+	# ok
