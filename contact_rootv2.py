@@ -309,7 +309,7 @@ def nameserver(sock,name_ips,domain):
 	except socket.timeout:
 		print(f"[-] No response from nameserver {name_ip}, trying next server...")
 		if name_ips:  # make sure there are servers left
-			return nameserver(name_ips,domain)
+			return nameserver(sock,name_ips,domain)
 		else:
 			print("[-] All Bopm bom servers failed.")
 			return None
@@ -319,15 +319,15 @@ def nameserver(sock,name_ips,domain):
 	return read_answer(data, answer_start)
 
 
-def NS_TO_IP(packet,data):
+def NS_TO_IP(sock,packet,data):
 	nameserver_ns = random.choice(read_authority(packet,data))
 	print("[+] finding ip of nameserver "+nameserver_ns)
-	mg = root_server(nearest_root,nameserver_ns)
+	mg = root_server(sock,nearest_root,nameserver_ns)
 	print(mg)
-	nameserver_tld = tld_server(mg,nameserver_ns)
+	nameserver_tld = tld_server(sock,mg,nameserver_ns)
 	print("Found namerserver NS -- namerserver Ip")
 	print(nameserver_tld)
-	namer_ip = nameserver(nameserver_tld,nameserver_ns)
+	namer_ip = nameserver(sock,nameserver_tld,nameserver_ns)
 	return [namer_ip[0]]
 
 
@@ -349,7 +349,7 @@ def tld_server(sock,tld_ips,domain,recursive=0):
 	except socket.timeout:
 	    print(f"[-] No response from {tld_ip}, trying next server...")
 	    if tld_ips:  # make sure there are servers left
-	        return tld_server(tld_ips, domain, 1)
+	        return tld_server(sock,tld_ips, domain, 1)
 	    else:
 	        print("[-] All TLD servers failed.")
 	        return None
@@ -361,7 +361,7 @@ def tld_server(sock,tld_ips,domain,recursive=0):
 		print("[+] Found glued ip")
 		return glued_ip
 
-	ok = NS_TO_IP(packet,data)
+	ok = NS_TO_IP(sock,packet,data)
 	return ok
 
 def hostname(domain):
@@ -403,3 +403,4 @@ while True:
 	question = read_question(data)
 	print("name:= ",question)
 	hostname(question)
+	# ok
