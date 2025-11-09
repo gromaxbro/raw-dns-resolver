@@ -4,6 +4,7 @@ import socket
 import random
 import time
 from cache import get_records, set_records, print_view, purge_expired ,view_all
+import threading
 
 root_ips = []
 nearest_root = []
@@ -436,6 +437,8 @@ def tld_server(sock,tld_ips,domain,recursive=0):
 #########################################
 
 def hostname(domain):
+
+
 	cache = get_records(domain,"A", rclass="IN")
 	if cache:
 		result = [(i['value'], i['ttl']) for i in cache]
@@ -456,7 +459,7 @@ def hostname(domain):
 	namer_res = nameserver(s,tld,domain)
 	print(namer_res)
 	set_records(domain,namer_res,"A")
-	print(view_all())
+	# print(view_all())
 
 	return namer_res
 
@@ -471,15 +474,7 @@ add = (UDP_IP, UDP_PORT)
 sock.bind(add)
 print(f"Listening for UDP packets on {UDP_IP}:{UDP_PORT}")
 
-
-
-while True:
-	# domain = "human.com"
-	# domain = input("fg: ")
-	# hostname(domain)
-	data, addr = sock.recvfrom(1024)
-	print(addr)
-	purge_expired()
+def worker(data):
 	read = read_data(data)
 	question = read_question(data)
 	print("name:= ",question)
@@ -495,3 +490,28 @@ while True:
 		header = make_client_header(data,0) # no cache return 0 answers
 		answer = make_answer(data)
 		sock.sendto(header+answer,addr)
+
+def periodic_purge():
+    while True:
+        time.sleep(300)  # every 5 minutes
+        removed = purge_expired()
+        if removed:
+            print(f"[CACHE] Purged {removed} expired entries")
+
+# periodic_purge()
+
+threading.Thread(target=periodic_purge, daemon=True).start()
+
+while True:
+	# domain = "human.com"
+	# domain = input("fg: ")
+	# hostname(domain)
+	data, addr = sock.recvfrom(1024)
+	print(addr)
+	t = threading.Thread(target=worker, args=(data,))
+	t.daemon = True
+
+	t.start()
+
+	purge_expired()
+	
