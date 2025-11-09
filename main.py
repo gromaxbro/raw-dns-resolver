@@ -181,3 +181,4 @@ while True:
         print(f"Answer hex:{header+answer}")
         print("******************\n")
         sock.sendto(header+answer,addr)
+        sock.sendto(header+answer,addr)
