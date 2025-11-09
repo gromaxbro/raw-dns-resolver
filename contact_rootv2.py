@@ -3,10 +3,15 @@ import requests
 import socket
 import random
 import time
+from cache import get_records, set_records, print_view, purge_expired ,view_all
 
 root_ips = []
 nearest_root = []
 i = 12
+
+# rec = get_records("example.com","A", rclass="IN")
+# print(rec)
+
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.settimeout(2) 
@@ -191,6 +196,19 @@ def read_addional(packet,data):
 		offset += rdata
 	return additonal_ip
 
+def make_client_header(data,q_len):
+        # r = len(rec[0])
+        id_bytes = data[0:2]
+        flags = b'\x81\x80'  # standard response, QR=1, AA=1, no error
+        qdcount = data[4:6]
+        # ancount = b'\x00\x01'  # one answer
+        ancount = (q_len).to_bytes(2,byteorder="big")
+        nscount = b'\x00\x00'
+        arcount = b'\x00\x00'
+        header = id_bytes + flags + qdcount + ancount + nscount + arcount
+        return header
+
+
 def decode_dns_name(data, offset):
     labels = []
     original_offset = offset
@@ -247,6 +265,57 @@ def read_authority(packet, data):
     return authority_ip
 
 
+
+############################## returning data########################
+def read_data(data):
+        # Field   Size (bits)     Description
+        # ID         16              A unique identifier assigned by the client. Used to match responses to queries.
+        # Flags      16              Contains control bits (see below).
+        # QDCOUNT    16              Number of entries in the Question section.
+        # ANCOUNT    16              Number of resource records in the Answer section.
+        # NSCOUNT    16              Number of name server (Authority) records.
+        # ARCOUNT    16              Number of additional records
+
+        idd = int.from_bytes(data[0:2], byteorder='big')
+        flags = int.from_bytes(data[2:4], byteorder='big')
+        QDCOUNT = int.from_bytes(data[4:6], byteorder='big')
+        ANCOUNT = int.from_bytes(data[6:8], byteorder='big')
+        NSCOUNT = int.from_bytes(data[8:10], byteorder='big')
+        ARCOUNT = int.from_bytes(data[10:12], byteorder='big')
+        print(f"id :{idd} \n flags:{flags} \n QDCOUNT:{QDCOUNT} \n ANCOUNT:{ANCOUNT} \n NSCOUNT:{NSCOUNT} \n ARCOUNT:{ARCOUNT}")
+        return {idd,flags,QDCOUNT,ANCOUNT,NSCOUNT,ARCOUNT}
+def make_answer(data, rec=[], qtype=1, qclass=1):
+    """
+    Build the DNS answer section using the query `data` and answer list `rec`.
+    rec = [(ip, ttl), ...]
+    """
+    # --- find end of question section ---
+    offset = 12
+    while data[offset] != 0:
+        offset += data[offset] + 1
+    offset += 5  # skip null + QTYPE + QCLASS
+    question_bytes = data[12:offset]
+
+    # --- no records ---
+    if not rec:
+        return question_bytes
+
+    # --- build answer section ---
+    answer = b''
+    for ip, ttl in rec:
+        answer += b'\xc0\x0c'                    # pointer to QNAME (offset 12)
+        answer += qtype.to_bytes(2, 'big')       # QTYPE (A = 1)
+        answer += qclass.to_bytes(2, 'big')      # QCLASS (IN = 1)
+        answer += ttl.to_bytes(4, 'big')         # TTL
+        answer += (4).to_bytes(2, 'big')         # RDLENGTH = 4 bytes (IPv4)
+        answer += socket.inet_aton(ip)           # RDATA = IPv4 address
+
+    return question_bytes + answer
+
+
+################################################
+
+####################contacting boss##################
 def root_server(sock,root_ip,domain):
 	print(f"[+] contacting root server {root_ip[0]}")
 	UDP_IP = root_ip[1]
@@ -364,7 +433,14 @@ def tld_server(sock,tld_ips,domain,recursive=0):
 	ok = NS_TO_IP(sock,packet,data)
 	return ok
 
+#########################################
+
 def hostname(domain):
+	cache = get_records(domain,"A", rclass="IN")
+	if cache:
+		result = [(i['value'], i['ttl']) for i in cache]
+		return result
+
 	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP socket
 	s.settimeout(2) 
 
@@ -379,6 +455,9 @@ def hostname(domain):
 	print("nameserver Ip ---> Domain IP")
 	namer_res = nameserver(s,tld,domain)
 	print(namer_res)
+	set_records(domain,namer_res,"A")
+	print(view_all())
+
 	return namer_res
 
 update_root_address()
@@ -400,7 +479,19 @@ while True:
 	# hostname(domain)
 	data, addr = sock.recvfrom(1024)
 	print(addr)
+	purge_expired()
+	read = read_data(data)
 	question = read_question(data)
 	print("name:= ",question)
-	hostname(question)
+	asn = hostname(question)
 	# ok
+	if asn: # it check if there is local cache or not
+		print("got answer") # found cache return ips
+		header = make_client_header(data,len(asn))
+		answer = make_answer(data,asn)
+		sock.sendto(header+answer,addr)
+	else:
+		print("nope")
+		header = make_client_header(data,0) # no cache return 0 answers
+		answer = make_answer(data)
+		sock.sendto(header+answer,addr)
