@@ -19,6 +19,9 @@ This project implements a DNS resolver that performs iterative queries from root
 
 ## How It Works
 
+See detailed explanation and design in [Note.md](./Note.md).
+
+
 1. **Initialization**  
    Loads root server IPs from `root.hints` file.
 
