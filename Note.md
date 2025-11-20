@@ -1,4 +1,18 @@
-# HEADERS
+# DNS packets have a structure like this:
++---------------------+
+| Header 
++---------------------+
+| Question
++---------------------+
+| Answer 
++---------------------+
+| Authority 	
++---------------------+
+| Additional 
++---------------------+
+
+
+## HEADERS
 ```
 ### Field   Size (bits)     Description
 ID         16              A unique identifier assigned by the client. Used to match responses to queries.
@@ -9,14 +23,14 @@ NSCOUNT    16              Number of name server (Authority) records.
 ARCOUNT    16              Number of additional records
 ```
 
-# QUESTION
+## QUESTION
 ```
 QNAME   The queried domain name, encoded as labels (e.g., www.google.com → 3www6google3com0).
 QTYPE   Type of record requested (e.g., 1 = A, 28 = AAAA, 15 = MX).
 QCLASS  Usually 1 for Internet (IN).
 ```
 
-## QTYPE (DNS Records)
+### QTYPE (DNS Records)
 ```
 ### QTYPE   Meaning Notes
 1       A       IPv4 address
@@ -29,6 +43,7 @@ QCLASS  Usually 1 for Internet (IN).
 33      SRV     Service location (used in SIP, XMPP, etc.)
 ```
 
+### Flags (in depth)
 1️⃣ Byte 1 (first 8 bits)
 ```
 Bit	Value	Meaning
