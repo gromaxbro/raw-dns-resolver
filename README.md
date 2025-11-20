@@ -2,7 +2,6 @@
 
 This project implements a DNS resolver that performs iterative queries from root servers down to authoritative name servers to resolve domain names to IP addresses.
 
----
 
 ## Features
 
@@ -15,7 +14,7 @@ This project implements a DNS resolver that performs iterative queries from root
 - Uses threading for concurrent query handling and periodic cache purging
 - Implements EDNS(0) OPT pseudo-record for extended DNS features
 
----
+
 
 ## How It Works
 
@@ -66,7 +65,7 @@ See detailed explanation and design in [Note.md](./Note.md).
 7. **UDP Server**  
    Listens locally on UDP port 1234 for incoming DNS queries and responds using cache or fresh resolution.
 
----
+
 
 ## Usage
 
@@ -74,14 +73,14 @@ See detailed explanation and design in [Note.md](./Note.md).
 - Queries are resolved by iterative DNS lookup and answered with cached or fresh data.
 - Logs resolution steps and latency for debugging.
 
----
+
 
 ## Requirements
 
 - Python 3.x
 - `cache.py` module for DNS record caching and management
 
----
+
 
 ## Limitations
 
@@ -90,7 +89,7 @@ See detailed explanation and design in [Note.md](./Note.md).
 - Assumes IPv4-only queries and responses.
 - Timeout handling with retries is basic.
 
----
+
 
 ## Future Improvements
 
