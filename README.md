@@ -41,7 +41,7 @@ See detailed explanation and design in [Note.md](./Note.md).
    +---------------------+
    | Additional          | 
    +---------------------+
-```
+   ```
 4. **Iterative Resolution**  
    - Query root server for TLD servers for the domain.  
    - Query TLD servers for it returns namerserver domain + glued ip (only if in same zone) like .com tld only will give hostinger.com nameserver ip not hostinger.net ip.  
