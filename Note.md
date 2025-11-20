@@ -74,11 +74,24 @@ Bit	Value	Meaning
 0	1	RCODE bit 0
 ```
 
+# WORKING
 
 ## contact to root server
 
 there are 13 kind of root server in the world we can find ips in `root hint file`
-
 - first ping all the servers and get nearest one and work with it
-
 usually root servers are Anycast (many physical server uses same ip) 
+
+returns :- ip address of TLD server
+
+## contact to TLD server
+
+ask the tld returned from root for nameserver address
+
+returns :- domain name with sometimes glued ip
+
+## contact nameserver
+
+finally ask nameserver for website ip
+
+returns:- your target ip
