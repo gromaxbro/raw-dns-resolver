@@ -30,17 +30,38 @@ See detailed explanation and design in [Note.md](./Note.md).
 
 3. **DNS Query Construction**  
    Builds DNS query packets including headers, questions, and optional EDNS record.
-
+   ```
+   +---------------------+
+   | Header              |
+   +---------------------+
+   | Question            |
+   +---------------------+
+   | Answer              | 
+   +---------------------+
+   | Authority           | 
+   +---------------------+
+   | Additional          | 
+   +---------------------+
+```
 4. **Iterative Resolution**  
    - Query root server for TLD servers for the domain.  
-   - Query TLD servers for authoritative name servers.  
+   - Query TLD servers for it returns namerserver domain + glued ip (only if in same zone) like .com tld only will give hostinger.com nameserver ip not hostinger.net ip.  
    - Query authoritative servers for the final IP address.
+
+   `root server --> tld server --> nameserver`
+
+   *note:- sometimes tld only return nameserver domain name (because of out-zone) .so we have to start new query from starting for finding namerserver ip`root server --> tld server -->(gluedip)`*
 
 5. **Response Parsing**  
    Parses DNS response sections: answers, authority, and additional records.
 
+   rootserver server returns:- only authority
+   tld server server returns :- authority + additional
+   nameserver returns :- answer
+
 6. **Caching**  
    Stores resolved DNS records with TTL and purges expired entries periodically.
+   we used `lmdb` incache memory for fast reponse
 
 7. **UDP Server**  
    Listens locally on UDP port 1234 for incoming DNS queries and responds using cache or fresh resolution.
