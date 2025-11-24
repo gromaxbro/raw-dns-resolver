@@ -5,6 +5,10 @@ import random
 import time
 from cache import get_records, set_records, print_view, purge_expired ,view_all
 import threading
+from datetime import datetime, timezone
+import json
+import uuid
+
 
 root_ips = []
 nearest_root = []
@@ -16,6 +20,30 @@ i = 12
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.settimeout(2) 
+
+def add_logs(domain,rscode,latency,cached):
+	filename = "dns_dashboard_front/src/assets/data.json"
+	reqid = f"req{str(uuid.uuid4())[:8]}"
+	with open(filename, "r", encoding="utf-8") as f:
+		data = json.load(f)
+		new_entry = {
+		    "id": reqid,
+		    "timestamp": datetime.now(timezone.utc)
+		                   .isoformat(timespec="microseconds")
+		                   .replace("+00:00", "Z"),
+		    "client_ip": "unknown",
+		    "domain": domain,
+		    "query_type": "A",
+		    "rcode": rscode,
+		    "latency_ms": latency,
+		    "protocol": "UDP",
+		    "cached": cached
+		}
+
+		data.append(new_entry)
+
+		with open(filename, "w", encoding="utf-8") as f:
+		    json.dump(data, f, indent=2)
 
 
 def update_root_address():
@@ -436,16 +464,28 @@ def tld_server(sock,tld_ips,domain,recursive=0):
 
 #########################################
 
+def now_iso_z():
+    return datetime.now(timezone.utc) \
+        .isoformat(timespec="microseconds") \
+        .replace("+00:00", "Z")
+
+
+
 def hostname(domain):
 
 
 	cache = get_records(domain,"A", rclass="IN")
+
 	if cache:
+		rcode = "NOERROR"
+		add_logs(domain,rcode,0,True)
 		result = [(i['value'], i['ttl']) for i in cache]
 		return result
 
 	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP socket
 	s.settimeout(2) 
+	start_ts = now_iso_z()
+	start = time.perf_counter()
 
 	print("root --> tld")
 	root_res = root_server(s,nearest_root,domain)
@@ -457,9 +497,17 @@ def hostname(domain):
 
 	print("nameserver Ip ---> Domain IP")
 	namer_res = nameserver(s,tld,domain)
+	end = time.perf_counter()
+	latency_ms = int((end - start) * 1000)
 	print(namer_res)
 	set_records(domain,namer_res,"A")
+
+	rcode = "NOERROR"
+	if not namer_res:
+		    rcode = "NXDOMAIN"
+
 	# print(view_all())
+	add_logs(domain,rcode,latency_ms,False)
 
 	return namer_res
 
