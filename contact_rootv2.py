@@ -8,11 +8,14 @@ import threading
 from datetime import datetime, timezone
 import json
 import uuid
+from threading import Lock
+import os
 
 
 root_ips = []
 nearest_root = []
 i = 12
+LOG_PATH = "dns_dashboard_front/src/assets/data.json"
 
 # rec = get_records("example.com","A", rclass="IN")
 # print(rec)
@@ -21,29 +24,44 @@ i = 12
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.settimeout(2) 
 
-def add_logs(domain,rscode,latency,cached):
-	filename = "dns_dashboard_front/src/assets/data.json"
-	reqid = f"req{str(uuid.uuid4())[:8]}"
-	with open(filename, "r", encoding="utf-8") as f:
-		data = json.load(f)
-		new_entry = {
-		    "id": reqid,
-		    "timestamp": datetime.now(timezone.utc)
-		                   .isoformat(timespec="microseconds")
-		                   .replace("+00:00", "Z"),
-		    "client_ip": "unknown",
-		    "domain": domain,
-		    "query_type": "A",
-		    "rcode": rscode,
-		    "latency_ms": latency,
-		    "protocol": "UDP",
-		    "cached": cached
-		}
+log_lock = Lock()
 
-		data.append(new_entry)
+def now_iso_z():
+    return datetime.now(timezone.utc) \
+        .isoformat(timespec="microseconds") \
+        .replace("+00:00", "Z")
 
-		with open(filename, "w", encoding="utf-8") as f:
-		    json.dump(data, f, indent=2)
+def add_logs(domain, rcode, latency_ms, cached):
+    reqid = f"req_{str(uuid.uuid4())[:8]}"
+
+    with log_lock:
+        # 1) read existing JSON safely
+        if os.path.exists(LOG_PATH):
+            with open(LOG_PATH, "r", encoding="utf-8") as f:
+                try:
+                    data = json.load(f)
+                except json.JSONDecodeError:
+                    data = []   # file empty or corrupted
+        else:
+            data = []
+
+        # 2) append new entry
+        new_entry = {
+            "id": reqid,
+            "timestamp": now_iso_z(),
+            "client_ip": "unknown",
+            "domain": domain,
+            "query_type": "A",
+            "rcode": rcode,
+            "latency_ms": int(latency_ms),
+            "protocol": "UDP",
+            "cached": cached
+        }
+        data.append(new_entry)
+
+        # 3) write back
+        with open(LOG_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
 
 
 def update_root_address():
@@ -464,12 +482,6 @@ def tld_server(sock,tld_ips,domain,recursive=0):
 
 #########################################
 
-def now_iso_z():
-    return datetime.now(timezone.utc) \
-        .isoformat(timespec="microseconds") \
-        .replace("+00:00", "Z")
-
-
 
 def hostname(domain):
 
@@ -515,7 +527,7 @@ update_root_address()
 check_nearest_root()
 
 UDP_IP = "127.0.0.1"
-UDP_PORT = 1234
+UDP_PORT = 53
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP socket
 add = (UDP_IP, UDP_PORT)
@@ -551,15 +563,19 @@ def periodic_purge():
 threading.Thread(target=periodic_purge, daemon=True).start()
 
 while True:
-	# domain = "human.com"
-	# domain = input("fg: ")
-	# hostname(domain)
-	data, addr = sock.recvfrom(1024)
-	print(addr)
-	t = threading.Thread(target=worker, args=(data,))
-	t.daemon = True
+        try:
+                data, addr = sock.recvfrom(1024)
+        except ConnectionResetError:
+                # Windows UDP quirk: ignore ICMP port unreachable / resets
+                continue
+        except OSError as e:
+                print(f"Socket error: {e}")
+                continue
+        print(addr)
+        t = threading.Thread(target=worker, args=(data,))
+        t.daemon = True
 
-	t.start()
+        t.start()
 
-	purge_expired()
+        purge_expired()
 	
