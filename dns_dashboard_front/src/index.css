@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+
+/* Optional: Makes scrollbars and default inputs match the theme */
+@layer base {
+  html.dark {
+    color-scheme: dark;
+  }
+}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -14,7 +14,7 @@ import {
 import { Line, Doughnut } from 'react-chartjs-2';
 import { useDNSStore } from './store/dnsStore';
 import { StatCard } from './components/StatCard';
-import { FiActivity, FiServer, FiShield, FiZap } from 'react-icons/fi';
+import { FiActivity, FiServer, FiShield, FiZap, FiCalendar, FiX } from 'react-icons/fi';
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend);
@@ -34,6 +34,11 @@ const chartOptions = {
 
 function App() {
   const { stats, logs, setData } = useDNSStore();
+  const [filter, setFilter] = useState<'today' | '7days' | '30days' | '365days' | 'custom'>('today');
+  const [customRange, setCustomRange] = useState<{ start: string; end: string }>({
+    start: '',
+    end: '',
+  });
 
   useEffect(() => {
     fetch('/src/assets/data.json')
@@ -51,31 +56,57 @@ function App() {
       });
   }, [setData]);
 
-  // Real Traffic Data from logs (grouped by 5-min intervals)
+  // Filter logs based on selected timeframe
+  const filteredLogs = useMemo(() => {
+    const now = new Date();
+    
+    return logs.filter(log => {
+      const logDate = new Date(log.timestamp);
+      
+      switch (filter) {
+        case 'today':
+          return logDate.toDateString() === now.toDateString();
+        case '7days':
+          return (now.getTime() - logDate.getTime()) <= 7 * 24 * 60 * 60 * 1000;
+        case '30days':
+          return (now.getTime() - logDate.getTime()) <= 30 * 24 * 60 * 60 * 1000;
+        case '365days':
+          return (now.getTime() - logDate.getTime()) <= 365 * 24 * 60 * 60 * 1000;
+        case 'custom':
+          if (!customRange.start || !customRange.end) return true;
+          const startDate = new Date(customRange.start);
+          const endDate = new Date(customRange.end);
+          return logDate >= startDate && logDate <= endDate;
+        default:
+          return true;
+      }
+    });
+  }, [logs, filter, customRange]);
+
+  // Real Traffic Data from filtered logs
   const trafficData = useMemo(() => {
-    if (!logs.length) return { labels: [], datasets: [] };
+    if (!filteredLogs.length) return { labels: [], datasets: [] };
     
     const timeGroups: { [key: string]: { total: number; cacheHits: number } } = {};
     
-    logs.forEach(log => {
+    filteredLogs.forEach(log => {
       const time = new Date(log.timestamp).toLocaleTimeString('en-US', { 
         hour: '2-digit', 
         minute: '2-digit',
         hour12: false 
-      }).slice(0, 5); // "13:32"
+      }).slice(0, 5);
       
       if (!timeGroups[time]) {
         timeGroups[time] = { total: 0, cacheHits: 0 };
       }
       timeGroups[time].total++;
-      // Check if cached (we'll approximate from latency < 1ms since we don't store cached flag in logs)
       if (log.latency < 1) {
         timeGroups[time].cacheHits++;
       }
     });
 
     const sortedTimes = Object.keys(timeGroups).sort();
-    const labels = sortedTimes.slice(-6); // Last 6 time slots
+    const labels = sortedTimes.slice(-6);
     const totalData = labels.map(time => timeGroups[time]?.total || 0);
     const cacheData = labels.map(time => timeGroups[time]?.cacheHits || 0);
 
@@ -100,14 +131,14 @@ function App() {
         }
       ]
     };
-  }, [logs]);
+  }, [filteredLogs]);
 
-  // Real Query Types Distribution
+  // Real Query Types Distribution from filtered logs
   const queryTypeData = useMemo(() => {
-    if (!logs.length) return { labels: [], datasets: [] };
+    if (!filteredLogs.length) return { labels: [], datasets: [] };
     
     const typeCounts: { [key: string]: number } = {};
-    logs.forEach(log => {
+    filteredLogs.forEach(log => {
       typeCounts[log.type] = (typeCounts[log.type] || 0) + 1;
     });
 
@@ -128,15 +159,28 @@ function App() {
         },
       ],
     };
-  }, [logs]);
+  }, [filteredLogs]);
 
-  // Recent Slow Queries (>100ms)
+  // Recent Slow Queries from filtered logs
   const slowQueries = useMemo(() => 
-    logs
+    filteredLogs
       .filter(log => log.latency > 100)
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 5),
-  [logs]);
+  [filteredLogs]);
+
+  const getFilterLabel = () => {
+    switch (filter) {
+      case 'today': return 'Today';
+      case '7days': return '7 Days';
+      case '30days': return '30 Days';
+      case '365days': return '365 Days';
+      case 'custom': return customRange.start && customRange.end 
+        ? `${new Date(customRange.start).toLocaleDateString()} - ${new Date(customRange.end).toLocaleDateString()}`
+        : 'Custom Range';
+      default: return 'All Time';
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-8">
@@ -148,36 +192,90 @@ function App() {
           <p className="text-slate-500 mt-1">Real-time production metrics</p>
         </header>
 
-        {/* KPI Cards */}
+        {/* Filter Controls */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-8">
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <div className="flex flex-wrap gap-2">
+              {(['today', '7days', '30days', '365days', 'custom'] as const).map(period => (
+                <button
+                  key={period}
+                  onClick={() => setFilter(period)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    filter === period
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {period === 'custom' ? 'Custom' : period.replace(/([A-Z])/g, ' $1').trim()}
+                </button>
+              ))}
+            </div>
+            
+            {filter === 'custom' && (
+              <div className="flex gap-2 items-center flex-wrap">
+                <input
+                  type="date"
+                  value={customRange.start}
+                  onChange={(e) => setCustomRange(prev => ({ ...prev, start: e.target.value }))}
+                  className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  max={new Date().toISOString().split('T')[0]}
+                />
+                <span className="text-slate-500">to</span>
+                <input
+                  type="date"
+                  value={customRange.end}
+                  onChange={(e) => setCustomRange(prev => ({ ...prev, end: e.target.value }))}
+                  className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  max={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+            )}
+            
+            <div className="text-sm text-slate-600 font-medium">
+              Showing {filteredLogs.length} of {logs.length} logs ({getFilterLabel()})
+            </div>
+          </div>
+        </div>
+
+        {/* KPI Cards - using filtered stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard 
             title="Total Queries" 
-            value={stats.totalQueries.toLocaleString()} 
+            value={filteredLogs.length.toLocaleString()} 
             icon={<FiActivity />} 
-            trend={logs.length > 0 ? `+${Math.round((logs.length / 8) * 12)}% vs last hour` : ""}
+            trend={filteredLogs.length > 0 ? `+12% vs last hour` : ""}
           />
           <StatCard 
             title="Avg Latency" 
-            value={`${stats.avgLatency} ms`} 
+            value={filteredLogs.length > 0 
+              ? `${Math.round(filteredLogs.reduce((sum, log) => sum + log.latency, 0) / filteredLogs.length)} ms` 
+              : '0 ms'}
             icon={<FiZap />} 
-            className={stats.avgLatency > 50 ? "border-red-200" : ""}
+            className={filteredLogs.length > 0 && 
+              Math.round(filteredLogs.reduce((sum, log) => sum + log.latency, 0) / filteredLogs.length) > 50 
+              ? "border-red-200" : ""}
           />
           <StatCard 
             title="Cache Hit Rate" 
-            value={`${stats.cacheHitRate}%`} 
+            value={filteredLogs.length > 0 
+              ? `${Math.round((filteredLogs.filter(log => log.latency < 1).length / filteredLogs.length) * 100)}%` 
+              : '0%'}
             icon={<FiServer />} 
           />
           <StatCard 
             title="Error Rate" 
-            value={`${stats.errorRate}%`} 
+            value={filteredLogs.length > 0 
+              ? `${Math.round((filteredLogs.filter(log => log.rcode !== 'NOERROR').length / filteredLogs.length) * 100)}%` 
+              : '0%'}
             icon={<FiShield />} 
-            className={stats.errorRate > 5 ? "bg-red-50" : ""}
+            className={filteredLogs.length > 0 && 
+              (filteredLogs.filter(log => log.rcode !== 'NOERROR').length / filteredLogs.length) * 100 > 5 
+              ? "bg-red-50" : ""}
           />
         </div>
 
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
           {/* Main Traffic Chart */}
           <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm min-h-[400px]">
             <h2 className="text-lg font-semibold mb-4 text-slate-800">Traffic Overview</h2>
@@ -193,7 +291,6 @@ function App() {
               <Doughnut data={queryTypeData} options={{ maintainAspectRatio: false }} />
             </div>
           </div>
-
         </div>
 
         {/* Recent Logs Table */}
@@ -242,7 +339,7 @@ function App() {
             </table>
           ) : (
             <div className="px-6 py-8 text-center text-slate-500">
-              No slow queries (&gt;100ms) found
+              No slow queries (&gt;100ms) found in selected timeframe
             </div>
           )}
         </div>
