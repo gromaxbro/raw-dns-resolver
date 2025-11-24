@@ -2,7 +2,6 @@
 
 This project implements a DNS resolver that performs iterative queries from root servers down to authoritative name servers to resolve domain names to IP addresses.
 
-## DASHBOARD
 <img width="817" height="496" alt="image" src="https://github.com/user-attachments/assets/3c1558b8-9fee-4d19-87b3-807b03845cd4" />
 
 
